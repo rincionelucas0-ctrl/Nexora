@@ -167,7 +167,7 @@ async function startCamera(){
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:720},height:{ideal:960}},audio:false});
     video.srcObject=stream;await video.play();
     video.style.display='block';placeholder.style.display='none';$('cameraMetric').textContent='Permitida';$('stageState').textContent='CÁMARA ACTIVA';
-    initThree();modelRoot=new THREE.Group();scene.add(modelRoot);if(!activeObject)setDemo();
+    initThree();if(!modelRoot){modelRoot=new THREE.Group();scene.add(modelRoot)}if(!activeObject)setDemo();
     setStatus('CARGANDO SEGUIMIENTO');
     const vision=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
     poseLandmarker=await PoseLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'GPU'},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:.5,minPosePresenceConfidence:.5,minTrackingConfidence:.5});

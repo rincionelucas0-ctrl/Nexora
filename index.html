@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#080b12">
+<meta name="description" content="NEXORA AI AR Engine: prototipo de seguimiento corporal y visualización de modelos 3D en cámara.">
+<title>NEXORA AI — AR Engine Prototype</title>
+<style>
+:root{color-scheme:dark;--bg:#080b12;--panel:#111824;--line:#253245;--cyan:#8cf4ff;--muted:#91a2b9;--text:#f4f8ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+button,input,select{font:inherit}button{border:0;border-radius:12px;padding:12px 14px;font-weight:700;cursor:pointer;background:var(--cyan);color:#061018}button.secondary{background:#1a2534;color:#eaf5ff;border:1px solid var(--line)}button:disabled{opacity:.45;cursor:not-allowed}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 12px;gap:12px} .brand{font-size:21px;font-weight:900;letter-spacing:.17em}.tag{font-size:10px;letter-spacing:.18em;color:var(--muted)}.status{font-size:11px;border:1px solid var(--line);border-radius:30px;padding:6px 9px;color:var(--muted);white-space:nowrap}
+main{max-width:980px;margin:auto;padding:0 14px 28px}.intro{padding:8px 4px 16px}.intro h1{font-size:clamp(25px,5vw,39px);line-height:1.06;margin:8px 0}.intro p{color:var(--muted);margin:8px 0 0;max-width:660px}
+.workspace{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(260px,.8fr);gap:14px}.stage{position:relative;overflow:hidden;min-height:500px;aspect-ratio:3/4;background:radial-gradient(ellipse at 50% 35%,#1c2b3c 0%,#0b111b 55%,#05070b 100%);border:1px solid var(--line);border-radius:22px}
+#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:none}#three{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}#placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:28px;background:radial-gradient(ellipse at 50% 38%,#1d2b3b 0%,#0b111b 58%,#05070b 100%)}
+.scanring{width:145px;height:145px;border:1px solid #8cf4ff80;border-radius:50%;display:grid;place-items:center;box-shadow:0 0 48px #4bd9f51a;margin-bottom:22px;position:relative}.scanring:before,.scanring:after{content:"";position:absolute;border:1px solid #8cf4ff30;border-radius:50%;inset:14px}.scanring:after{inset:-9px;border-style:dashed;animation:spin 24s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.scanring span{font-size:45px;color:var(--cyan)}#placeholder h2{margin:0 0 7px;font-size:20px}#placeholder p{margin:0;color:var(--muted);font-size:13px;max-width:270px}.stagebadge{position:absolute;left:12px;top:12px;background:#080b12b8;border:1px solid #ffffff1c;border-radius:30px;padding:7px 10px;font-size:11px;backdrop-filter:blur(10px)}.stagebottom{position:absolute;bottom:12px;left:12px;right:12px;display:flex;gap:8px;align-items:center;justify-content:space-between}.tiny{font-size:11px;color:#d4e0ee;background:#080b12c9;padding:7px 9px;border-radius:9px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:16px}.section h3{font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;color:#c8d6e8}.section p{font-size:12px;color:var(--muted);margin:7px 0 0}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.actions button{font-size:13px;padding:11px 8px}.field{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}.field label{font-size:12px;color:var(--muted)}input[type=file],select{width:100%;padding:10px;background:#0b111b;border:1px solid var(--line);border-radius:10px;color:var(--text);font-size:12px}input[type=range]{width:100%;accent-color:var(--cyan)}.rangehead{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}.metric{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #ffffff0d;font-size:12px}.metric span:first-child{color:var(--muted)}.metric strong{font-weight:600;text-align:right}.note{font-size:11px;color:var(--muted);background:#0b111b;border:1px solid var(--line);padding:11px;border-radius:12px}.foot{color:#72839a;font-size:11px;padding:15px 4px 0}
+@media(max-width:740px){.workspace{grid-template-columns:1fr}.stage{min-height:0;aspect-ratio:3/4;max-height:72vh}.panel{padding:14px}.intro h1{max-width:500px}header{padding-left:14px;padding-right:14px}}
+</style>
+</head>
+<body>
+<header><div><div class="brand">NEXORA <span style="color:var(--cyan)">AI</span></div><div class="tag">BODY TRACKING · 3D ENGINE</div></div><div class="status" id="status">● MOTOR EN ESPERA</div></header>
+<main>
+<section class="intro"><div class="tag">PROTOTIPO TÉCNICO · VERSIÓN 0.2</div><h1>Tu cuerpo.<br><span style="color:var(--cyan)">Un lienzo digital.</span></h1><p>Probá el seguimiento corporal en cámara y cargá tus propios modelos 3D. Este prototipo es la base técnica, no una versión comercial terminada.</p></section>
+<div class="workspace">
+  <section class="stage" id="stage">
+    <video id="video" autoplay playsinline muted></video><canvas id="three"></canvas>
+    <div id="placeholder"><div class="scanring"><span>⌁</span></div><h2>Prepará tu experiencia AR</h2><p>Iniciá la cámara con buena iluminación y mantené el cuerpo dentro del encuadre.</p></div>
+    <div class="stagebadge" id="stageState">CÁMARA DESCONECTADA</div>
+    <div class="stagebottom"><span class="tiny" id="tracking">Seguimiento: apagado</span><span class="tiny" id="fps">FPS: —</span></div>
+  </section>
+  <aside class="panel">
+    <section class="section"><h3>01 / Cámara y tracking</h3><div class="actions"><button id="start">Activar cámara</button><button class="secondary" id="stop" disabled>Detener</button></div><p>La cámara requiere permiso y normalmente HTTPS o localhost. El procesamiento de pose se realiza en el dispositivo.</p></section>
+    <section class="section"><h3>02 / Modelo 3D</h3><div class="field"><label for="modelFile">Cargar modelo 3D .GLB</label><input id="modelFile" type="file" accept=".glb,model/gltf-binary"></div><div class="actions"><button class="secondary" id="wings">Usar demo 3D</button><button class="secondary" id="clear">Quitar modelo</button></div><p id="modelInfo">Modelo activo: alas de demostración procedurales.</p></section>
+    <section class="section"><h3>03 / Anclaje corporal</h3><div class="field"><label for="anchor">Zona de anclaje</label><select id="anchor"><option value="shoulders">Hombros / espalda alta</option><option value="torso">Centro del torso</option><option value="hips">Caderas</option><option value="head">Cabeza</option></select></div>
+      <div class="field"><div class="rangehead"><label for="scale">Escala</label><strong id="scaleVal">1.0×</strong></div><input id="scale" type="range" min="0.25" max="2.5" value="1" step="0.05"></div>
+      <div class="field"><div class="rangehead"><label for="height">Ajuste vertical</label><strong id="heightVal">0</strong></div><input id="height" type="range" min="-1" max="1" value="0" step="0.05"></div>
+      <div class="field"><label><input id="showPose" type="checkbox" checked> Mostrar puntos de seguimiento</label></div>
+    </section>
+    <section class="section"><h3>04 / Estado del motor</h3><div class="metric"><span>Detección corporal</span><strong id="poseMetric">No iniciada</strong></div><div class="metric"><span>Modelo</span><strong id="assetMetric">Demo 3D</strong></div><div class="metric"><span>Permiso cámara</span><strong id="cameraMetric">Pendiente</strong></div></section>
+    <div class="note">Aviso de prueba: la posición corporal 2D se usa para orientar un objeto 3D en la vista de cámara. La oclusión realista, la profundidad precisa y el seguimiento perfecto al girar aún no están implementados.</div>
+  </aside>
+</div>
+<div class="foot">NEXORA AI · PROTOTIPO EXPERIMENTAL 0.2 · El video se procesa en el dispositivo. Los modelos cargados permanecen locales y no se guardan al recargar.</div>
+</main>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {FilesetResolver, PoseLandmarker} from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm';
+
+const $=id=>document.getElementById(id), video=$('video'), canvas=$('three'), placeholder=$('placeholder');
+let stream=null, poseLandmarker=null, renderer=null, scene=null, camera=null, modelRoot=null, poseDots=null, activeObject=null, lastVideoTime=-1, frameCount=0, fpsStamp=0, running=false, loopScheduled=false, localObjectURL=null;
+const clock=new THREE.Clock();
+function setStatus(s){$('status').textContent='● '+s}
+function initThree(){
+  if(renderer)return;
+  renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,preserveDrawingBuffer:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.7));renderer.setSize(canvas.clientWidth,canvas.clientHeight,false);
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(42,canvas.clientWidth/canvas.clientHeight,0.01,100);
+  camera.position.set(0,0,5.5);
+  scene.add(new THREE.HemisphereLight(0xc9f4ff,0x111827,2.0));
+  const key=new THREE.DirectionalLight(0xffffff,2.2);key.position.set(2,4,5);scene.add(key);
+  const fill=new THREE.PointLight(0x54dfff,3,10);fill.position.set(-2,1,3);scene.add(fill);
+  poseDots=new THREE.Group();scene.add(poseDots);
+  window.addEventListener('resize',resize);
+  resize();
+}
+function resize(){if(!renderer)return;const r=$('stage').getBoundingClientRect();renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix()}
+function makeWings(){
+  const group=new THREE.Group();
+  const cyan=new THREE.MeshStandardMaterial({color:0x67eaff,emissive:0x139fc8,emissiveIntensity:1.4,metalness:.28,roughness:.25,transparent:true,opacity:.83,side:THREE.DoubleSide});
+  const edge=new THREE.LineBasicMaterial({color:0xc6fbff,transparent:true,opacity:.85});
+  for(const side of [-1,1]){
+    const wing=new THREE.Group();wing.position.x=side*.12;wing.rotation.z=side*-.12;group.add(wing);
+    for(let i=0;i<7;i++){
+      const angle=(i/6)*1.05;
+      const len=0.45+Math.sin((i/6)*Math.PI)*0.48;
+      const start=new THREE.Vector3(0,0,0);
+      const end=new THREE.Vector3(side*(.22+Math.sin(angle)*len),.15+Math.cos(angle)*len,0);
+      const mid=new THREE.Vector3((start.x+end.x)/2+side*.04,(start.y+end.y)/2,0.035);
+      const shape=new THREE.Shape();shape.moveTo(start.x,start.y);shape.quadraticCurveTo(mid.x,mid.y,end.x,end.y);shape.quadraticCurveTo(mid.x-side*.14,mid.y-.18,start.x,start.y);
+      const mesh=new THREE.Mesh(new THREE.ShapeGeometry(shape,18),cyan);wing.add(mesh);
+      const pts=[start,mid,end];const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),edge);wing.add(line);
+      const feather=new THREE.Mesh(new THREE.ConeGeometry(.035,len*.48,5),cyan);feather.position.copy(end).multiplyScalar(.72);feather.rotation.z=side*-.32;wing.add(feather);
+    }
+    const core=new THREE.Mesh(new THREE.SphereGeometry(.10,16,12),new THREE.MeshStandardMaterial({color:0xd5fcff,emissive:0x50dfff,emissiveIntensity:2.5}));core.position.set(0,-.02,.06);wing.add(core);
+  }
+  group.scale.setScalar(.9);return group;
+}
+function clearModel(){if(activeObject){modelRoot.remove(activeObject);disposeObject(activeObject);activeObject=null}}
+function disposeObject(o){o.traverse?.(n=>{if(n.geometry)n.geometry.dispose();if(n.material){for(const v of (Array.isArray(n.material)?n.material:[n.material]))v.dispose()}})}
+function setDemo(){initThree();clearModel();activeObject=makeWings();modelRoot.add(activeObject);$('modelInfo').textContent='Modelo activo: alas de demostración procedurales.';$('assetMetric').textContent='Demo 3D';}
+async function loadModel(file){
+  initThree();clearModel();
+  if(localObjectURL)URL.revokeObjectURL(localObjectURL);
+  localObjectURL=URL.createObjectURL(file);
+  const loader=new GLTFLoader();
+  try{
+    const gltf=await loader.loadAsync(localObjectURL);
+    activeObject=gltf.scene;activeObject.traverse(n=>{if(n.isMesh){n.frustumCulled=false;if(n.material)n.material.side=THREE.DoubleSide}});
+    const box=new THREE.Box3().setFromObject(activeObject), size=box.getSize(new THREE.Vector3()), center=box.getCenter(new THREE.Vector3());
+    activeObject.position.sub(center);
+    const max=Math.max(size.x,size.y,size.z)||1;activeObject.scale.multiplyScalar(1.5/max);
+    modelRoot.add(activeObject);
+    $('modelInfo').textContent='Modelo activo: '+file.name;
+    $('assetMetric').textContent=file.name.length>18?file.name.slice(0,15)+'…':file.name;
+  }catch(e){console.error(e);$('modelInfo').textContent='No se pudo cargar. Probá un archivo .glb autocontenido; los .gltf con archivos externos no se admiten en esta versión.';$('assetMetric').textContent='Error';setDemo()}
+}
+function mapPoint(lm){const w=canvas.clientWidth,h=canvas.clientHeight;const planeH=2*camera.position.z*Math.tan(THREE.MathUtils.degToRad(camera.fov/2));const planeW=planeH*(w/h);return new THREE.Vector3((.5-lm.x)*planeW,(.5-lm.y)*planeH,0)}
+function anchorLandmarks(lm){
+  const get=i=>lm[i];let a,b,c;
+  const type=$('anchor').value;
+  if(type==='shoulders'){a=get(11);b=get(12);c=get(23)}
+  else if(type==='torso'){a=get(11);b=get(12);c=get(24)}
+  else if(type==='hips'){a=get(23);b=get(24);c=get(25)}
+  else {a=get(7);b=get(8);c=get(11)}
+  if(!a||!b||!c)return null;
+  const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+  const dx=b.x-a.x,dy=b.y-a.y;
+  return {mid,dx,dy,dist:Math.hypot(dx,dy),down:c.y-mid.y};
+}
+function updateDots(lm){
+  while(poseDots.children.length)poseDots.remove(poseDots.children[0]);
+  if(!$('showPose').checked)return;
+  const indices=[11,12,13,14,15,16,23,24,25,26,27,28];
+  for(const i of indices){const p=lm[i];if(!p||p.visibility<.35)continue;const dot=new THREE.Mesh(new THREE.SphereGeometry(.025,8,6),new THREE.MeshBasicMaterial({color:0x8cf4ff}));dot.position.copy(mapPoint(p));poseDots.add(dot)}
+}
+function renderLoop(now){
+  if(!renderer||!running){loopScheduled=false;return;}
+  requestAnimationFrame(renderLoop);
+  if(video.readyState>=2&&video.currentTime!==lastVideoTime&&poseLandmarker){
+    lastVideoTime=video.currentTime;
+    try{
+      const result=poseLandmarker.detectForVideo(video,now);
+      const lm=result.landmarks?.[0];
+      if(lm){
+        $('poseMetric').textContent='Detectando';
+        $('tracking').textContent='Seguimiento: activo';
+        const a=anchorLandmarks(lm);
+        updateDots(lm);
+        if(a&&activeObject){
+          const point=mapPoint({x:a.mid.x,y:a.mid.y+a.down*.12+Number($('height').value)*.08});
+          const scale=Number($('scale').value);
+          const shoulderWidth=Math.max(.05,a.dist*canvas.clientWidth/canvas.clientHeight*2);
+          activeObject.position.x=THREE.MathUtils.lerp(activeObject.position.x,point.x,0.35);
+          activeObject.position.y=THREE.MathUtils.lerp(activeObject.position.y,point.y,0.35);
+          activeObject.position.z=0.15;
+          const targetScale=scale*shoulderWidth*2.3;
+          activeObject.scale.setScalar(THREE.MathUtils.lerp(activeObject.scale.x,targetScale,0.2));
+          activeObject.rotation.z=THREE.MathUtils.lerp(activeObject.rotation.z,-Math.atan2(a.dy,a.dx),0.25);
+        }
+      }else{$('poseMetric').textContent='No detectada';$('tracking').textContent='Seguimiento: buscando…'}
+    }catch(e){console.warn(e)}
+  }
+  renderer.render(scene,camera);
+  frameCount++;if(now-fpsStamp>1000){$('fps').textContent='FPS: '+Math.round(frameCount*1000/(now-fpsStamp));frameCount=0;fpsStamp=now}
+}
+async function startCamera(){
+  $('start').disabled=true;setStatus('INICIANDO MOTOR');
+  try{
+    if(!window.isSecureContext)throw new Error('La cámara necesita una dirección HTTPS o localhost. Publicá el sitio en Vercel y abrí la URL https://.');
+    if(!navigator.mediaDevices?.getUserMedia)throw new Error('Este navegador no permite acceder a la cámara. Probá con Chrome actualizado en Android.');
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:720},height:{ideal:960}},audio:false});
+    video.srcObject=stream;await video.play();
+    video.style.display='block';placeholder.style.display='none';$('cameraMetric').textContent='Permitida';$('stageState').textContent='CÁMARA ACTIVA';
+    initThree();if(!modelRoot){modelRoot=new THREE.Group();scene.add(modelRoot)}if(!activeObject)setDemo();
+    setStatus('CARGANDO SEGUIMIENTO');
+    const vision=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    poseLandmarker=await PoseLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'GPU'},runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:.5,minPosePresenceConfidence:.5,minTrackingConfidence:.5});
+    running=true;$('stop').disabled=false;$('start').textContent='Cámara activa';$('poseMetric').textContent='Esperando persona';setStatus('MOTOR ACTIVO');if(!loopScheduled){loopScheduled=true;requestAnimationFrame(renderLoop)}
+  }catch(e){
+    console.error(e);setStatus('ERROR DE INICIO');$('cameraMetric').textContent='No disponible';$('start').disabled=false;$('stop').disabled=true;$('start').textContent='Activar cámara';
+    alert('No se pudo iniciar la cámara o el seguimiento. Detalle: '+e.message+'\n\nProbá con Chrome en Android, conexión a internet y una dirección HTTPS.');
+    if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  }
+}
+function stopCamera(){
+  running=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  if(poseLandmarker){try{poseLandmarker.close()}catch(e){}poseLandmarker=null}
+  video.pause();video.srcObject=null;video.style.display='none';placeholder.style.display='flex';
+  $('stop').disabled=true;$('start').disabled=false;$('start').textContent='Activar cámara';$('cameraMetric').textContent='Detenida';$('poseMetric').textContent='No iniciada';$('tracking').textContent='Seguimiento: apagado';$('stageState').textContent='CÁMARA DESCONECTADA';setStatus('MOTOR EN ESPERA');
+}
+$('start').addEventListener('click',startCamera);$('stop').addEventListener('click',stopCamera);
+$('wings').addEventListener('click',()=>{initThree();if(!modelRoot){modelRoot=new THREE.Group();scene.add(modelRoot)}setDemo()});
+$('clear').addEventListener('click',()=>{if(modelRoot)clearModel();$('modelInfo').textContent='No hay un modelo activo.';$('assetMetric').textContent='Ninguno'});
+$('modelFile').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)loadModel(f)});
+$('scale').addEventListener('input',e=>$('scaleVal').textContent=Number(e.target.value).toFixed(2)+'×');
+$('height').addEventListener('input',e=>$('heightVal').textContent=Number(e.target.value).toFixed(2));
+initThree();modelRoot=new THREE.Group();scene.add(modelRoot);setDemo();requestAnimationFrame(t=>{lastFrame=t});
+window.addEventListener('beforeunload',()=>{running=false;if(stream)stream.getTracks().forEach(t=>t.stop());if(poseLandmarker){try{poseLandmarker.close()}catch(e){}}if(localObjectURL)URL.revokeObjectURL(localObjectURL)});
+</script>
+</body>
+</html>

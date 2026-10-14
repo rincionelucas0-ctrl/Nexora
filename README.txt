@@ -1,13 +1,11 @@
-NEXORA AI — paquete de publicación Vercel
+NEXORA AI — Prototipo AR
 
-1. Descomprimí este ZIP.
-2. Subí index.html a la raíz del repositorio GitHub conectado a Vercel (no dentro de una subcarpeta).
-3. En Vercel > Settings > Build and Deployment:
-   - Framework Preset: Other
-   - Build Command: vacío / Override desactivado
-   - Output Directory: vacío / Override desactivado
-   - Root Directory: ./ (raíz del repositorio)
-4. Guardá y hacé un nuevo deployment desde Deployments > Redeploy, o subí el cambio a GitHub.
-5. Abrí la URL HTTPS del proyecto en Chrome Android y aceptá el permiso de cámara.
+Contenido:
+- index.html: aplicación web experimental para cámara, seguimiento corporal y carga de modelos GLB propios.
 
-Requisitos: conexión a internet para descargar Three.js y MediaPipe desde CDN. Usá archivos .glb autocontenidos para modelos 3D. La calidad del tracking depende del dispositivo, iluminación y navegador. Es un prototipo técnico, no una aplicación comercial terminada.
+Requisitos y notas:
+- Abrir desde HTTPS (por ejemplo, una publicación HTTPS) o localhost para acceder a la cámara.
+- Requiere conexión a internet para descargar Three.js y los recursos de MediaPipe.
+- Carga modelos .GLB autocontenidos de hasta 50 MB.
+- Fotos y videos se generan localmente; el video se guarda en formato WebM cuando el navegador lo admite.
+- Es un prototipo experimental; requiere pruebas en el dispositivo objetivo antes de uso de producción.

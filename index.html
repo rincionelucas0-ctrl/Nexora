@@ -53,7 +53,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {FilesetResolver, PoseLandmarker} from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm';
 
 const $=id=>document.getElementById(id), video=$('video'), canvas=$('three'), placeholder=$('placeholder');
-let stream=null, poseLandmarker=null, renderer=null, scene=null, camera=null, modelRoot=null, poseDots=null, dotPool=[], activeObject=null, modelBaseScale=1, modelHasScale=false, lastVideoTime=-1, lastGoodPoseAt=0, frameCount=0, fpsStamp=0, running=false, loopScheduled=false, loopRafId=0, loadSequence=0, cameraRequestId=0, facingMode='user', recorder=null, recordedChunks=[], lastMediaUrl=null, lastMediaType='', captureRafId=0, recordingCanvas=null, recordingContext=null;
+let stream=null, poseLandmarker=null, renderer=null, scene=null, camera=null, modelRoot=null, poseDots=null, dotPool=[], activeObject=null, modelBaseScale=1, modelHasScale=false, lastVideoTime=-1, lastGoodPoseAt=0, frameCount=0, fpsStamp=0, running=false, loopScheduled=false, loopRafId=0, previewRafId=0, loadSequence=0, cameraRequestId=0, facingMode='user', recorder=null, recordedChunks=[], lastMediaUrl=null, lastMediaType='', captureRafId=0, recordingCanvas=null, recordingContext=null;
 const poseIndices=[11,12,13,14,15,16,23,24,25,26,27,28];
 function setStatus(s){$('status').textContent='● '+s}
 function initThree(){
@@ -74,7 +74,27 @@ function initThree(){
   resize();
 }
 function resize(){if(!renderer||!camera)return;const r=$('stage').getBoundingClientRect();if(!Number.isFinite(r.width)||!Number.isFinite(r.height)||r.width<1||r.height<1)return;renderer.setSize(Math.round(r.width),Math.round(r.height),false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix()}
-function clearModel(){if(activeObject){if(modelRoot)modelRoot.remove(activeObject);disposeObject(activeObject);activeObject=null}modelBaseScale=1;modelHasScale=false}
+function clearModel(){
+  if(previewRafId){cancelAnimationFrame(previewRafId);previewRafId=0}
+  if(activeObject){if(modelRoot)modelRoot.remove(activeObject);disposeObject(activeObject);activeObject=null}
+  modelBaseScale=1;modelHasScale=false;
+  if(!running){placeholder.style.display='flex';$('stageState').textContent='CÁMARA DESCONECTADA';renderer?.clear?.()}
+}
+function renderModelPreview(){
+  if(running||!renderer||!camera||!activeObject){previewRafId=0;return}
+  previewRafId=requestAnimationFrame(renderModelPreview);
+  video.style.display='none';placeholder.style.display='none';
+  $('stageState').textContent='VISTA PREVIA 3D';$('tracking').textContent='Modelo: vista previa';$('fps').textContent='PREVISUALIZACIÓN';
+  activeObject.visible=true;
+  activeObject.position.set(0,0,0);activeObject.rotation.set(0,0,0);activeObject.scale.setScalar(modelBaseScale);
+  for(const dot of dotPool)dot.visible=false;
+  renderer.render(scene,camera);
+}
+function startModelPreview(){
+  if(running||!activeObject||!renderer)return;
+  if(previewRafId)cancelAnimationFrame(previewRafId);
+  previewRafId=requestAnimationFrame(renderModelPreview);
+}
 function disposeObject(o){
   const geometries=new Set(),materials=new Set(),textures=new Set();
   o.traverse?.(n=>{
@@ -127,6 +147,7 @@ async function loadModel(file){
     activeObject=loadedObject;activeObject.visible=false;activeObject.scale.setScalar(1);modelHasScale=false;modelRoot.add(activeObject);
     $('modelInfo').textContent='Modelo activo: '+file.name+' · '+meshCount+' malla(s).';
     $('assetMetric').textContent=file.name.length>18?file.name.slice(0,15)+'…':file.name;
+    if(!running)startModelPreview();
   }catch(e){
     if(parsedScene&&parsedScene!==activeObject)disposeObject(parsedScene);
     if(requestId!==loadSequence)return;
@@ -225,6 +246,8 @@ function renderLoop(now){
 }
 async function startCamera(){
   const requestId=++cameraRequestId;
+  if(previewRafId){cancelAnimationFrame(previewRafId);previewRafId=0}
+  if(activeObject)activeObject.visible=false;
   $('start').disabled=true;setStatus('INICIANDO MOTOR');
   try{
     if(!window.isSecureContext)throw new Error('La cámara necesita una dirección HTTPS o localhost. Publicá el sitio en Vercel y abrí la URL https://.');
@@ -261,6 +284,7 @@ async function startCamera(){
     poseLandmarker=detector;
     lastVideoTime=-1;lastGoodPoseAt=0;frameCount=0;fpsStamp=performance.now();running=true;loopScheduled=true;$('stop').disabled=false;$('flipCamera').disabled=false;$('takePhoto').disabled=false;$('recordVideo').disabled=false;$('start').textContent='Cámara activa';$('cameraMetric').textContent=facingMode==='user'?'Frontal activa':'Trasera activa';$('poseMetric').textContent='Esperando persona';setStatus('MOTOR ACTIVO');loopRafId=requestAnimationFrame(renderLoop);
   }catch(e){
+    if(requestId!==cameraRequestId)return;
     console.error(e);running=false;loopScheduled=false;setStatus('ERROR DE INICIO');$('cameraMetric').textContent='No disponible';$('start').disabled=false;$('stop').disabled=true;$('flipCamera').disabled=true;$('takePhoto').disabled=true;$('recordVideo').disabled=true;$('start').textContent='Activar cámara';$('stageState').textContent='CÁMARA DESCONECTADA';$('tracking').textContent='Seguimiento: apagado';$('poseMetric').textContent='No iniciada';
     if(poseLandmarker){try{poseLandmarker.close()}catch(_){}poseLandmarker=null}
     if(loopRafId){cancelAnimationFrame(loopRafId);loopRafId=0}
@@ -268,6 +292,7 @@ async function startCamera(){
     video.pause();video.srcObject=null;video.style.display='none';placeholder.style.display='flex';
     $('modelInfo').textContent='No se pudo iniciar el motor. '+(e?.message||'Error desconocido');
     alert('No se pudo iniciar la cámara o el seguimiento. Detalle: '+(e?.message||'error desconocido')+'\n\nProbá con Chrome actualizado, conexión a internet y una dirección HTTPS.');
+    startModelPreview();
   }
 }
 function stopCamera(){
@@ -279,7 +304,7 @@ function stopCamera(){
   if(poseLandmarker){try{poseLandmarker.close()}catch(e){}poseLandmarker=null}
   video.pause();video.srcObject=null;video.style.display='none';placeholder.style.display='flex';lastGoodPoseAt=0;
   for(const dot of dotPool)dot.visible=false;if(activeObject)activeObject.visible=false;lastVideoTime=-1;frameCount=0;fpsStamp=0;
-  $('stop').disabled=true;$('flipCamera').disabled=true;$('start').disabled=false;$('takePhoto').disabled=true;$('recordVideo').disabled=true;$('recordVideo').textContent='Grabar video';$('recordVideo').classList.add('secondary');$('start').textContent='Activar cámara';$('cameraMetric').textContent='Detenida';$('poseMetric').textContent='No iniciada';$('tracking').textContent='Seguimiento: apagado';$('stageState').textContent='CÁMARA DESCONECTADA';setStatus('MOTOR EN ESPERA');
+  $('stop').disabled=true;$('flipCamera').disabled=true;$('start').disabled=false;$('takePhoto').disabled=true;$('recordVideo').disabled=true;$('recordVideo').textContent='Grabar video';$('recordVideo').classList.add('secondary');$('start').textContent='Activar cámara';$('cameraMetric').textContent='Detenida';$('poseMetric').textContent='No iniciada';$('tracking').textContent='Seguimiento: apagado';$('stageState').textContent='CÁMARA DESCONECTADA';setStatus('MOTOR EN ESPERA');if(activeObject)startModelPreview();
 }
 
 function compositeSize(){
@@ -372,6 +397,7 @@ window.addEventListener('beforeunload',()=>{
   if(recorder&&recorder.state!=='inactive'){try{recorder.stop()}catch(e){}}
   if(captureRafId)cancelAnimationFrame(captureRafId);
   if(loopRafId)cancelAnimationFrame(loopRafId);
+  if(previewRafId)cancelAnimationFrame(previewRafId);
   if(stream)stream.getTracks().forEach(t=>t.stop());
   if(poseLandmarker){try{poseLandmarker.close()}catch(e){}}
   if(activeObject)disposeObject(activeObject);

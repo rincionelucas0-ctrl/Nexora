@@ -97,20 +97,35 @@ function clearModel(){if(activeObject){modelRoot.remove(activeObject);disposeObj
 function disposeObject(o){o.traverse?.(n=>{if(n.geometry)n.geometry.dispose();if(n.material){for(const v of (Array.isArray(n.material)?n.material:[n.material]))v.dispose()}})}
 function setDemo(){initThree();clearModel();activeObject=makeWings();modelRoot.add(activeObject);$('modelInfo').textContent='Modelo activo: alas de demostración procedurales.';$('assetMetric').textContent='Demo 3D';}
 async function loadModel(file){
-  initThree();clearModel();
-  if(localObjectURL)URL.revokeObjectURL(localObjectURL);
-  localObjectURL=URL.createObjectURL(file);
+  initThree();
+  if(!file)return;
+  if(!/\.glb$/i.test(file.name)){
+    $('modelInfo').textContent='Formato no compatible: elegí el archivo .glb, no el ZIP ni el .gltf.';
+    return;
+  }
+  $('modelInfo').textContent='Cargando modelo: '+file.name+'…';
+  $('assetMetric').textContent='Cargando…';
+  const previous=activeObject;
   const loader=new GLTFLoader();
   try{
-    const gltf=await loader.loadAsync(localObjectURL);
-    activeObject=gltf.scene;activeObject.traverse(n=>{if(n.isMesh){n.frustumCulled=false;if(n.material)n.material.side=THREE.DoubleSide}});
-    const box=new THREE.Box3().setFromObject(activeObject), size=box.getSize(new THREE.Vector3()), center=box.getCenter(new THREE.Vector3());
-    activeObject.position.sub(center);
-    const max=Math.max(size.x,size.y,size.z)||1;activeObject.scale.multiplyScalar(1.5/max);
-    modelRoot.add(activeObject);
+    // Parse the selected local file as an ArrayBuffer. This avoids blob-URL loading quirks on mobile browsers.
+    const buffer=await file.arrayBuffer();
+    const gltf=await loader.parseAsync(buffer, '');
+    const loadedObject=gltf.scene;loadedObject.traverse(n=>{if(n.isMesh){n.frustumCulled=false;if(n.material)n.material.side=THREE.DoubleSide}});
+    const box=new THREE.Box3().setFromObject(loadedObject), size=box.getSize(new THREE.Vector3()), center=box.getCenter(new THREE.Vector3());
+    loadedObject.position.sub(center);
+    const max=Math.max(size.x,size.y,size.z)||1;loadedObject.scale.multiplyScalar(1.5/max);
+    clearModel();
+    activeObject=loadedObject;modelRoot.add(activeObject);
     $('modelInfo').textContent='Modelo activo: '+file.name;
     $('assetMetric').textContent=file.name.length>18?file.name.slice(0,15)+'…':file.name;
-  }catch(e){console.error(e);$('modelInfo').textContent='No se pudo cargar. Probá un archivo .glb autocontenido; los .gltf con archivos externos no se admiten en esta versión.';$('assetMetric').textContent='Error';setDemo()}
+  }catch(e){
+    console.error('NEXORA GLB load error:',e);
+    activeObject=previous||null;
+    if(activeObject&&modelRoot&&!activeObject.parent)modelRoot.add(activeObject);
+    $('modelInfo').textContent='Error al cargar '+file.name+': '+(e?.message||'archivo GLB inválido o incompatible')+'. Probá otro .glb.';
+    $('assetMetric').textContent='Error de carga';
+  }
 }
 function mapPoint(lm){const w=canvas.clientWidth,h=canvas.clientHeight;const planeH=2*camera.position.z*Math.tan(THREE.MathUtils.degToRad(camera.fov/2));const planeW=planeH*(w/h);return new THREE.Vector3((.5-lm.x)*planeW,(.5-lm.y)*planeH,0)}
 function anchorLandmarks(lm){
@@ -189,7 +204,7 @@ function stopCamera(){
 $('start').addEventListener('click',startCamera);$('stop').addEventListener('click',stopCamera);
 $('wings').addEventListener('click',()=>{initThree();if(!modelRoot){modelRoot=new THREE.Group();scene.add(modelRoot)}setDemo()});
 $('clear').addEventListener('click',()=>{if(modelRoot)clearModel();$('modelInfo').textContent='No hay un modelo activo.';$('assetMetric').textContent='Ninguno'});
-$('modelFile').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)loadModel(f)});
+$('modelFile').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)loadModel(f);});
 $('scale').addEventListener('input',e=>$('scaleVal').textContent=Number(e.target.value).toFixed(2)+'×');
 $('height').addEventListener('input',e=>$('heightVal').textContent=Number(e.target.value).toFixed(2));
 initThree();modelRoot=new THREE.Group();scene.add(modelRoot);setDemo();requestAnimationFrame(t=>{lastFrame=t});
